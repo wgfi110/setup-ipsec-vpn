@@ -202,12 +202,15 @@ First check <a href="https://github.com/nm-l2tp/network-manager-l2tp/wiki/Prebui
 *Read this in other languages: [English](clients.md#troubleshooting), [简体中文](clients-zh.md#故障排除).*
 
 * [Windows Error 809](#windows-error-809)
-* [Windows Error 628](#windows-error-628)
+* [Windows Error 628 or 766](#windows-error-628-or-766)
+* [Windows 10 connecting](#windows-10-connecting)
 * [Windows 10 upgrades](#windows-10-upgrades)
 * [Windows 8/10 DNS leaks](#windows-810-dns-leaks)
 * [macOS VPN traffic](#macos-vpn-traffic)
 * [iOS/Android sleep mode](#iosandroid-sleep-mode)
+* [iOS 13 connection issues](#ios-13-connection-issues)
 * [Android 6 and above](#android-6-and-above)
+* [Debian 10 kernel](#debian-10-kernel)
 * [Chromebook issues](#chromebook-issues)
 * [Access VPN server's subnet](#access-vpn-servers-subnet)
 * [Other errors](#other-errors)
@@ -215,7 +218,7 @@ First check <a href="https://github.com/nm-l2tp/network-manager-l2tp/wiki/Prebui
 
 ### Windows Error 809
 
-> The network connection between your computer and the VPN server could not be established because the remote server is not responding.
+> Error 809: The network connection between your computer and the VPN server could not be established because the remote server is not responding. This could be because one of the network devices (e.g, firewalls, NAT, routers, etc) between your computer and the remote server is not configured to allow VPN connections. Please contact your Administrator or your service provider to determine which device may be causing the problem.
 
 To fix this error, a <a href="https://documentation.meraki.com/MX-Z/Client_VPN/Troubleshooting_Client_VPN#Windows_Error_809" target="_blank">one-time registry change</a> is required because the VPN server and/or client is behind NAT (e.g. home router). Download and import the `.reg` file below, or run the following from an <a href="http://www.winhelponline.com/blog/open-elevated-command-prompt-windows/" target="_blank">elevated command prompt</a>. **You must reboot your PC when finished.**
 
@@ -239,22 +242,33 @@ Although uncommon, some Windows systems disable IPsec encryption, causing the co
   REG ADD HKLM\SYSTEM\CurrentControlSet\Services\RasMan\Parameters /v ProhibitIpSec /t REG_DWORD /d 0x0 /f
   ```
 
-### Windows Error 628
+### Windows Error 628 or 766
 
-> The connection was terminated by the remote computer before it could be completed.
+> Error 628: The connection was terminated by the remote computer before it could be completed.
 
-To fix this error, please follow these steps:
+> Error 766: A certificate could not be found. Connections that use the L2TP protocol over IPSec require the installation of a machine certificate, also known as a computer certificate.
 
-1. Right-click on the wireless/network icon in system tray, select **Open Network and Sharing Center**.
+To fix these errors, please follow these steps:
+
+1. Right-click on the wireless/network icon in your system tray.
+1. Select **Open Network and Sharing Center**. Or, if using Windows 10 version 1709 or newer, select **Open Network & Internet settings**, then on the page that opens, click **Network and Sharing Center**.
 1. On the left, click **Change adapter settings**. Right-click on the new VPN and choose **Properties**.
 1. Click the **Security** tab. Select "Layer 2 Tunneling Protocol with IPsec (L2TP/IPSec)" for **Type of VPN**.
-1. Click **Allow these protocols**. Make sure the "Challenge Handshake Authentication Protocol (CHAP)" checkbox is checked.
+1. Click **Allow these protocols**. Check the "Challenge Handshake Authentication Protocol (CHAP)" and "Microsoft CHAP Version 2 (MS-CHAP v2)" checkboxes.
 1. Click the **Advanced settings** button.
 1. Select **Use preshared key for authentication** and enter `Your VPN IPsec PSK` for the **Key**.
 1. Click **OK** to close the **Advanced settings**.
 1. Click **OK** to save the VPN connection details.
 
 ![Select CHAP in VPN connection properties](images/vpn-properties.png)
+
+### Windows 10 connecting
+
+If using Windows 10 and the VPN is stuck on "connecting" for more than a few minutes, try these steps:
+
+1. Right-click on the wireless/network icon in your system tray.
+1. Select **Open Network & Internet settings**, then on the page that opens, click **VPN** on the left.
+1. Select the new VPN entry, then click **Connect**. If prompted, enter `Your VPN Username` and `Password`, then click **OK**.
 
 ### Windows 10 upgrades
 
@@ -276,6 +290,10 @@ To save battery, iOS devices (iPhone/iPad) will automatically disconnect Wi-Fi s
 
 Android devices will also disconnect Wi-Fi shortly after entering sleep mode, unless the option "Keep Wi-Fi on during sleep" is enabled. This option is no longer available in Android 8 (Oreo). Alternatively, you may try enabling the "Always-on VPN" option to stay connected. Learn more <a href="https://support.google.com/android/answer/9089766?hl=en" target="_blank">here</a>.
 
+### iOS 13 connection issues
+
+If your iOS 13 device (iPhone/iPad) can connect to the VPN but cannot access the Internet, try these steps: Edit `/etc/ipsec.conf` on the VPN server. Find `sha2-truncbug=yes` and replace it with `sha2-truncbug=no`. Save the file and run `service ipsec restart`.
+
 ### Android 6 and above
 
 If you are unable to connect using Android 6 or above:
@@ -284,6 +302,16 @@ If you are unable to connect using Android 6 or above:
 1. Edit `/etc/ipsec.conf` on the VPN server. Find `sha2-truncbug=yes` and replace it with `sha2-truncbug=no`. Save the file and run `service ipsec restart` (<a href="https://libreswan.org/wiki/FAQ#Configuration_Matters" target="_blank">Ref</a>).
 
 ![Android VPN workaround](images/vpn-profile-Android.png)
+
+### Debian 10 kernel
+
+Debian 10 users: Run `uname -r` to check your server's Linux kernel version. If it contains the word "cloud", and `/dev/ppp` is missing, then the kernel lacks `ppp` support and cannot use IPsec/L2TP mode ([IPsec/XAuth mode](clients-xauth.md) is not affected).
+
+To fix, you may switch to the standard Linux kernel by installing e.g. the `linux-image-amd64` package. Then update the default kernel in GRUB and reboot.
+
+### Chromebook issues
+
+Chromebook users: If you are unable to connect, try these steps: Edit `/etc/ipsec.conf` on the VPN server. Find the line `phase2alg=...` and append `,aes_gcm-null` at the end. Save the file and run `service ipsec restart`.
 
 ### Access VPN server's subnet
 
@@ -301,10 +329,6 @@ iptables -I FORWARD 2 -s 192.168.0.0/24 -d 192.168.43.0/24 -m conntrack --ctstat
 
 To make these IPTables rules persist after reboot, you may add them to file `/etc/iptables.rules` and/or `/etc/iptables/rules.v4` (Ubuntu/Debian), or `/etc/sysconfig/iptables` (CentOS/RHEL).
 
-### Chromebook issues
-
-Chromebook users: If you are unable to connect, try these steps: Edit `/etc/ipsec.conf` on the VPN server. Find the line `phase2alg=...` and append `,aes_gcm-null` at the end. Save the file and run `service ipsec restart`.
-
 ### Other errors
 
 If you encounter other errors, refer to the links below:
@@ -312,6 +336,7 @@ If you encounter other errors, refer to the links below:
 * http://www.tp-link.com/en/faq-1029.html
 * https://documentation.meraki.com/MX-Z/Client_VPN/Troubleshooting_Client_VPN#Common_Connection_Issues   
 * https://blogs.technet.microsoft.com/rrasblog/2009/08/12/troubleshooting-common-vpn-related-errors/   
+* https://stackoverflow.com/questions/25245854/windows-8-1-gets-error-720-on-connect-vpn
 
 ### Additional steps
 
